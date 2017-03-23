@@ -7,14 +7,19 @@ function [ best_cost, best_gamma ] = spatialSVM(data, labels, kernel)
 %   Output: Cell containing a one-vs-rest model for each label
 
     N = size(data, 1);
-    costs = [2e-5, 2e-3, 2e-1, 2e1, 2e3, 2e5, 2e7, 2e9, 2e11, 2e13, 2e15];
-    gammas = [2e-13, 2e-11, 2e-9, 2e-7, 2e-5, 2e-3, 2e-1, 2e1, 2e3];
+    % random search over hyperparameter space
+    a = -5; b = 11;
+    r = a + (b - a) .* rand(10, 1);
+    costs = 10 .^ r;
+    a = -9; b = 3;
+    r = a + (b - a) .* rand(10, 1);
+    gammas = 10 .^ r;
     best_val_acc = 0;
     
-    for gamma=gammas
+    for gamma=gammas'
         Kfull = zeros(N, N);
         Kfull = kernel(data, data, gamma);
-        for cost=costs
+        for cost=costs'
             flags = strcat({'-t 4 -b 0 -h 0 -q 1 -c'}, {' '}, ...
                 {num2str(cost, '%f')});
             breaks = [1:floor(N / 10):N N+1];
