@@ -1,4 +1,4 @@
-function [ pred ] = spatialSVMPredict(models, kernel, trainData, testData)
+function [ pred, model ] = spatialSVMPredict(kernel, trainData, labels, testData, cost, gamma)
 %spatialSVMPredict Uses models built in spatialSVM to predict test data
 %   models is result from spatialSVM
 %   kernel is a FUNCTION
@@ -9,27 +9,31 @@ function [ pred ] = spatialSVMPredict(models, kernel, trainData, testData)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % NOT OPTIMIZED TO ONLY USE SUPPORT VECTORS OF MODELS... YET
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    [N,D] = size(testData);
-    [M,~] = size(trainData);
-    numLabels = size(models,1);
-    KK = zeros(N,M);
-    for i=1:N
-        for j=1:M
-            KK(i,j) = kernel(testData(i,:),trainData(j,:));
-        end
-    end
-    KK = [(1:N)' KK];
-     %# get probability estimates of test instances using each model
-    prob = zeros(N,numLabels);
-    testLabels = zeros(N,1);
-    for k=1:numLabels
-        [~,~,p] = svmpredict(testLabels, KK, models{k}, '-b 1 -q 1');
-%         [~,~,p] = svmpredict(double(testLabels==k), KK, models{k}, '-b 1');
-        prob(:,k) = p(:,models{k}.Label==1);    %# probability of class==k
-    end
-
-    %# predict the class with the highest probability
-    [~,pred] = max(prob,[],2);
-  
+    [M, ~] = size(testData);
+    [N, ~] = size(trainData);
+    
+    flags = strcat({'-s 0 -t 4 -b 1 -h 0 -q 1 -c'}, {' '}, ...
+                    {num2str(cost, '%f')});
+    
+    % build kernel matrix and re-train the model with best params
+    K = kernel(trainData, trainData, gamma);
+    K = [(1:N)' K];
+        
+    model = svmtrain(double(labels), K, flags{1});
+% labels                    
+    % build the test kernel matrix and predict using trained model
+    KK = kernel(testData, trainData, gamma);
+    KK = [(1:M)', KK];
+    
+    testLabels = double(zeros(M, 1));
+    [ypred, ~, ~] = svmpredict(testLabels, KK, model, '-b 1 -q 1');
+    
+    % libsvm does not respect input label order, so swap according to
+    % order in model.Label
+    pred = ypred;
+%     for i=1:size(model.Label, 1)
+%         mask = ypred == i;
+%         pred(mask) = model.Label(i);
+%     end
 end
 

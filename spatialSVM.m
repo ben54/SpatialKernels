@@ -1,4 +1,4 @@
-function [ model ] = spatialSVM(data, labels, kernel, cost)
+function [ best_cost, best_gamma ] = spatialSVM(data, labels, kernel)
 %spatialSVM Builds an SVM classifier on a sample
 %   data is the sample
 %   labels are the labels for the sample (can be multiclass)
@@ -6,32 +6,45 @@ function [ model ] = spatialSVM(data, labels, kernel, cost)
 %   cost is the cost for C-SVC
 %   Output: Cell containing a one-vs-rest model for each label
 
-    uniqueLabels = unique(labels);
-    numLabels = size(uniqueLabels,1);
-    N = size(data,1);
-    K = zeros(N);
-    flags = strcat({'-s 0 -t 4 -b 1 -h 0 -c'},{' '}, {int2str(cost)});
-    for i=1:N
-        for j=1:N
-            K(i,j) = kernel(data(i,:),data(j,:));
+    N = size(data, 1);
+    costs = [2e-5, 2e-3, 2e-1, 2e1, 2e3, 2e5, 2e7, 2e9, 2e11, 2e13, 2e15];
+    gammas = [2e-13, 2e-11, 2e-9, 2e-7, 2e-5, 2e-3, 2e-1, 2e1, 2e3];
+    best_val_acc = 0;
+    
+    for gamma=gammas
+        Kfull = zeros(N, N);
+        Kfull = kernel(data, data, gamma);
+        for cost=costs
+            flags = strcat({'-t 4 -b 0 -h 0 -q 1 -c'}, {' '}, ...
+                {num2str(cost, '%f')});
+            breaks = [1:floor(N / 10):N N+1];
+            accs = zeros(1, 10);
+            for fold=1:10
+                % partition data into training and validation sets
+                valIdx = breaks(fold):(breaks(fold + 1) - 1);
+                trainIdx = setdiff(1:N, valIdx);
+                y_val = labels(valIdx);
+
+                K = Kfull(trainIdx, trainIdx);
+                K = [(1:size(trainIdx, 2))' K];
+                KK = Kfull(valIdx, trainIdx);
+                KK = [(1:size(valIdx, 2))' KK];
+
+                model = svmtrain(double(labels(trainIdx)), K, flags{1});
+                [~, acc, ~] = svmpredict(double(y_val), KK, model, '-q 1');
+                accs(fold) = acc(1) / 100.0;
+            end
+            val_acc = mean(accs);
+            if(val_acc > best_val_acc)
+                best_val_acc = val_acc;
+                best_gamma = gamma;
+                best_cost = cost;
+            end
         end
     end
-    
-    K = [(1:N)' K];
-    
-    model = cell(numLabels,1);
-    for k=1:numLabels
-        model{k} = svmtrain(double(labels==uniqueLabels(k)), K, flags{1});
-%         model{k} = svmtrain(double(labels==uniqueLabels(k)), K, '-t 4 -b 1 -c 100 -h 0');
-    end
-    
-%     %# get probability estimates of test instances using each model
-%     prob = zeros(N,numLabels);
-%     for k=1:numLabels
-%         [~,~,p] = svmpredict(double(testLabels==k), KK_, model{k}, '-b 1');
-%         %[~,~,p] = svmpredict(double(testLabel==k), testData, model{k}, '-b 1');
-%         prob(:,k) = p(:,model{k}.Label==1);    %# probability of class==k
-%     end
+    fprintf('Best gamma is %f\n', best_gamma);
+    fprintf('Best cost accuracy is %f\n', best_cost);
+    fprintf('Best validation accuracy is %f\n', best_val_acc);
 end
 
 % -s svm_type : set type of SVM (default 0)
