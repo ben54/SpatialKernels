@@ -1,4 +1,4 @@
-function [ best_cost, best_gamma ] = spatialSVM(data, labels, kernel)
+function [ best_cost, best_gamma ] = optimizeParams(data, labels, kernel)
 %   Performs random search over parameter space to determine optimal values
 %   using k-fold cross validation
 %   Inputs:
@@ -6,7 +6,8 @@ function [ best_cost, best_gamma ] = spatialSVM(data, labels, kernel)
 %   labels is the Nx1 array of training class labels
 %   kernel is a function that computes Kernel matrix betw 2 sets of points
 %   cost is the cost for C-SVC
-%   Output: Cell containing a one-vs-rest model for each label
+%   Outputs: 
+%   best_cost and best_gamma are the optimal parameters
 
     N = size(data, 1);
     % random search over hyperparameter space
